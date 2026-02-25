@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แบบฟอร์มขอใบกำกับภาษี (e-Tax Invoice)</title>
+    <!-- 1. นำเข้า Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. นำเข้า React และ Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+        .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Scrollbar for modal */
+        .modal-scroll::-webkit-scrollbar { width: 6px; }
+        .modal-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .modal-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Icon Components (SVG) ---
+        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
+        const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
+        const IconBuilding = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="22.01"></line><line x1="15" y1="22" x2="15" y2="22.01"></line><line x1="12" y1="22" x2="12" y2="22.01"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>;
+        const IconUser = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+        const IconRight = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>;
+        const IconSend = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>;
+        const IconLoader = () => <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>;
+        const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
+
+        const CHANNELS = ['Shopee', 'Lazada', 'TikTok Shop', 'Line Shopping', 'Facebook', 'Website', 'อื่นๆ'];
+
+        function App() {
+            const [step, setStep] = useState(1);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+            const [formData, setFormData] = useState({
+                itemStatus: '', invoiceType: '', channel: '', orderId: '',
+                companyName: '', taxId: '', branch: '', address: '',
+                email: '', phone: '', prefix: '', firstName: '', lastName: '', personId: ''
+            });
+
+            const updateData = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+
+            // --- Logic การเปลี่ยนหน้า ---
+            const nextStep = () => {
+                if (step === 1) {
+                    if (formData.itemStatus === 'ยังไม่ได้รับ') setStep(2);
+                    else setStep(3);
+                } else if (step === 3) {
+                    if (formData.invoiceType === 'นิติบุคคล') setStep(4);
+                    else if (formData.invoiceType === 'บุคคลธรรมดา') setStep(5);
+                }
+            };
+
+            const prevStep = () => {
+                if (step === 2) setStep(1);
+                else if (step === 3) setStep(1);
+                else if (step === 4 || step === 5) setStep(3);
+            };
+
+            const handleInitialSubmit = (e) => {
+                e.preventDefault();
+                setShowConfirmModal(true);
+            };
+
+            const handleFinalSubmit = () => {
+                setIsSubmitting(true);
+
+                const finalData = formData.invoiceType === 'นิติบุคคล' ? {
+                    itemStatus: formData.itemStatus,
+                    invoiceType: 'นิติบุคคล',
+                    name: formData.companyName,
+                    taxId: formData.taxId,
+                    orderId: formData.orderId,
+                    channel: formData.channel,
+                    branch: formData.branch,
+                    phone: formData.phone,
+                    address: formData.address,
+                    email: formData.email
+                } : {
+                    itemStatus: formData.itemStatus,
+                    invoiceType: 'บุคคลธรรมดา',
+                    name: `${formData.prefix}${formData.firstName} ${formData.lastName}`,
+                    taxId: formData.personId,
+                    orderId: formData.orderId,
+                    channel: formData.channel,
+                    branch: '-',
+                    phone: formData.phone,
+                    address: formData.address,
+                    email: formData.email
+                };
+
+                // --- ตรวจสอบว่ารันบน Google Apps Script หรือไม่ ---
+                if (typeof google !== 'undefined' && google.script) {
+                    google.script.run
+                        .withSuccessHandler((response) => {
+                            setIsSubmitting(false);
+                            setShowConfirmModal(false);
+                            if (response.success) {
+                                setShowSuccessModal(true);
+                                setStep(1);
+                                setFormData({
+                                    itemStatus: '', invoiceType: '', channel: '', orderId: '',
+                                    companyName: '', taxId: '', branch: '', address: '',
+                                    email: '', phone: '', prefix: '', firstName: '', lastName: '', personId: ''
+                                });
+                            } else {
+                                alert('เกิดข้อผิดพลาด: ' + response.error);
+                            }
+                        })
+                        .withFailureHandler((error) => {
+                            setIsSubmitting(false);
+                            setShowConfirmModal(false);
+                            alert('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: ' + error);
+                        })
+                        .saveData(finalData);
+                } else {
+                    console.log("Simulation Mode: Saving data...", finalData);
+                    setTimeout(() => {
+                        setIsSubmitting(false);
+                        setShowConfirmModal(false);
+                        setShowSuccessModal(true);
+                        setStep(1);
+                        setFormData({
+                            itemStatus: '', invoiceType: '', channel: '', orderId: '',
+                            companyName: '', taxId: '', branch: '', address: '',
+                            email: '', phone: '', prefix: '', firstName: '', lastName: '', personId: ''
+                        });
+                    }, 1500);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 pb-10">
+                    <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+                        <div className="max-w-3xl mx-auto px-4 py-3 flex justify-center items-center">
+                            <img 
+                                src="https://i.postimg.cc/HWyg0bK7/Lamsangstore.png" 
+                                alt="Logo" 
+                                className="w-full h-auto object-contain max-h-32" 
+                            />
+                        </div>
+                    </nav>
+
+                    <div className="max-w-3xl mx-auto p-4 mt-6">
+                        <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-8 text-white relative">
+                                <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-amber-50">แบบฟอร์มขอใบกำกับภาษี (e-Tax Invoice)</h1>
+                                <p className="text-gray-300 text-sm">บริษัท ลำแสง กรุ๊ป จำกัด</p>
+                                <div className="flex gap-2 mt-6">
+                                    {[1, 3, 4].map((s, i) => (
+                                        <div key={i} className={`h-1.5 flex-1 rounded-full transition-all ${ (step >= s && step !== 2) ? 'bg-amber-500' : 'bg-gray-700' }`}></div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="p-6 sm:p-10">
+                                {step === 1 && (
+                                    <div className="animate-fadeIn space-y-6">
+                                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                                            <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-sm">1</span>
+                                            สถานะสินค้า
+                                        </h2>
+                                        <div className="space-y-3">
+                                            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.itemStatus === 'ได้รับแล้ว' ? 'border-amber-500 bg-amber-50' : 'border-gray-100'}`}>
+                                                <input type="radio" name="st" value="ได้รับแล้ว" checked={formData.itemStatus === 'ได้รับแล้ว'} onChange={e => updateData('itemStatus', e.target.value)} className="w-5 h-5 text-amber-600 accent-amber-600" />
+                                                <span className="ml-3 font-medium">ได้รับสินค้าแล้ว / ตรวจสอบแล้ว</span>
+                                            </label>
+                                            <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${formData.itemStatus === 'ยังไม่ได้รับ' ? 'border-gray-400 bg-gray-50' : 'border-gray-100'}`}>
+                                                <input type="radio" name="st" value="ยังไม่ได้รับ" checked={formData.itemStatus === 'ยังไม่ได้รับ'} onChange={e => updateData('itemStatus', e.target.value)} className="w-5 h-5 text-gray-600 accent-gray-600" />
+                                                <span className="ml-3 font-medium">ยังไม่ได้รับสินค้า</span>
+                                            </label>
+                                        </div>
+                                        <button onClick={nextStep} disabled={!formData.itemStatus} className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50 flex justify-center gap-2">ถัดไป <IconRight className="w-5 h-5" /></button>
+                                    </div>
+                                )}
+
+                                {step === 2 && (
+                                    <div className="text-center py-10 animate-fadeIn">
+                                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><IconAlert className="w-10 h-10 text-red-500" /></div>
+                                        <h2 className="text-2xl font-bold text-gray-800 mb-2">กรุณารับสินค้าก่อน</h2>
+                                        <p className="text-gray-500 mb-8">ต้องตรวจสอบสินค้าให้เรียบร้อยก่อนขอใบกำกับภาษีครับ</p>
+                                        <button onClick={prevStep} className="px-6 py-2 border rounded-lg hover:bg-gray-50">กลับ</button>
+                                    </div>
+                                )}
+
+                                {step === 3 && (
+                                    <div className="animate-fadeIn space-y-6">
+                                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                                            <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-sm">2</span>
+                                            เลือกประเภท
+                                        </h2>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div onClick={() => updateData('invoiceType', 'นิติบุคคล')} className={`cursor-pointer p-6 border-2 rounded-2xl flex flex-col items-center text-center hover:bg-amber-50 ${formData.invoiceType === 'นิติบุคคล' ? 'border-amber-500 bg-amber-50' : 'border-gray-100'}`}>
+                                                <div className="p-3 bg-amber-100 rounded-full mb-3 text-amber-600"><IconBuilding /></div>
+                                                <span className="font-bold">นิติบุคคล</span>
+                                            </div>
+                                            <div onClick={() => updateData('invoiceType', 'บุคคลธรรมดา')} className={`cursor-pointer p-6 border-2 rounded-2xl flex flex-col items-center text-center hover:bg-amber-50 ${formData.invoiceType === 'บุคคลธรรมดา' ? 'border-amber-500 bg-amber-50' : 'border-gray-100'}`}>
+                                                <div className="p-3 bg-amber-100 rounded-full mb-3 text-amber-600"><IconUser /></div>
+                                                <span className="font-bold">บุคคลธรรมดา</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between mt-8">
+                                            <button onClick={prevStep} className="text-gray-400 font-bold">ย้อนกลับ</button>
+                                            <button onClick={nextStep} disabled={!formData.invoiceType} className="px-8 py-3 bg-amber-500 text-white rounded-xl font-bold shadow-lg disabled:opacity-50">ถัดไป</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(step === 4 || step === 5) && (
+                                    <form onSubmit={handleInitialSubmit} className="space-y-4 animate-fadeIn">
+                                        <h2 className="text-xl font-bold mb-6 text-amber-700">{step === 4 ? 'ข้อมูลนิติบุคคล' : 'ข้อมูลบุคคลธรรมดา'}</h2>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 mb-1">ช่องทางการสั่งซื้อ <span className="text-red-500">*</span></label>
+                                                <select required className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 bg-white" value={formData.channel} onChange={e => updateData('channel', e.target.value)}>
+                                                    <option value="">-- เลือก --</option>
+                                                    {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 mb-1">เลขที่คำสั่งซื้อ <span className="text-red-500">*</span></label>
+                                                <input required type="text" className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500" value={formData.orderId} onChange={e => updateData('orderId', e.target.value)} placeholder="เช่น 2310xxxx" />
+                                            </div>
+                                        </div>
+
+                                        {step === 4 ? (
+                                            <>
+                                                <div>
+                                                    <label className="block text-sm font-bold mb-1">ชื่อบริษัท <span className="text-red-500">*</span></label>
+                                                    <span className="text-xs text-gray-500 block mb-1">(โปรดกรอกตามหนังสือรับรองฯ/ภ.พ.20 ฉบับล่าสุด)</span>
+                                                    <input required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" value={formData.companyName} onChange={e => updateData('companyName', e.target.value)} />
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <div className="col-span-2">
+                                                        <label className="block text-sm font-bold mb-1">เลขประจำตัวผู้เสียภาษีอากร <span className="text-red-500">*</span></label>
+                                                        <input required maxLength="13" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="เลขประจำตัวผู้เสียภาษีอากร 13 หลัก" value={formData.taxId} onChange={e => updateData('taxId', e.target.value)} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-bold mb-1">สาขาที่ <span className="text-red-500">*</span></label>
+                                                        <input required placeholder="สำนักงานใหญ่ ใส่ 0000" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" value={formData.branch} onChange={e => updateData('branch', e.target.value)} />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-bold mb-1">คำนำหน้าชื่อ <span className="text-red-500">*</span></label>
+                                                        <select required className="w-full p-3 border rounded-lg bg-white" value={formData.prefix} onChange={e => updateData('prefix', e.target.value)}>
+                                                            <option value="">เลือก</option>
+                                                            <option>นาย</option>
+                                                            <option>นาง</option>
+                                                            <option>นางสาว</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-3">
+                                                        <label className="block text-sm font-bold mb-1">ชื่อ <span className="text-red-500">*</span></label>
+                                                        <input required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" value={formData.firstName} onChange={e => updateData('firstName', e.target.value)} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-bold mb-1">นามสกุล <span className="text-red-500">*</span></label>
+                                                    <input required className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" value={formData.lastName} onChange={e => updateData('lastName', e.target.value)} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-bold mb-1">เลขประจำตัวประชาชน <span className="text-red-500">*</span></label>
+                                                    <input required maxLength="13" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="เลขประจำตัวประชาชน 13 หลัก" value={formData.personId} onChange={e => updateData('personId', e.target.value)} />
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-sm font-bold mb-1">ที่อยู่ <span className="text-red-500">*</span></label>
+                                            <textarea required rows="3" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" 
+                                                placeholder="เลขที่ / อาคาร / หมู่บ้าน / หมู่ /  ซอย / ถนน /  แขวง/ตำบล / เขต/อำเภอ / จังหวัด /รหัสไปรษณีย์"
+                                                value={formData.address} onChange={e => updateData('address', e.target.value)}></textarea>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-bold mb-1">E-mail <span className="text-red-500">*</span></label>
+                                                <input required type="email" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="สำหรับส่งใบกำกับภาษี" value={formData.email} onChange={e => updateData('email', e.target.value)} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold mb-1">เบอร์ติดต่อ <span className="text-red-500">*</span></label>
+                                                <input required type="tel" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-500" placeholder="ใส่เฉพาะตัวเลข เช่น 0812345678" value={formData.phone} onChange={e => updateData('phone', e.target.value)} />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between pt-6 border-t mt-4">
+                                            <button type="button" onClick={prevStep} className="text-gray-400 font-bold">ย้อนกลับ</button>
+                                            <button type="submit" disabled={isSubmitting} className={`flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold shadow-lg ${isSubmitting ? 'opacity-70' : 'hover:to-amber-700'}`}>
+                                                <IconSend /> ส่งข้อมูล
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {showConfirmModal && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                                    <h3 className="font-bold text-xl text-gray-800 flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><IconCheck /></div>
+                                        ตรวจสอบความถูกต้อง
+                                    </h3>
+                                    <button onClick={() => setShowConfirmModal(false)} className="text-gray-400 hover:text-gray-600"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                </div>
+                                <div className="p-6 overflow-y-auto modal-scroll space-y-4 text-sm sm:text-base">
+                                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-amber-800 text-sm mb-4">กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดยืนยัน หากผิดพลาดสามารถกดปุ่ม "แก้ไข" ได้</div>
+                                    <div className="grid grid-cols-3 gap-y-3 gap-x-2">
+                                        <div className="font-bold text-gray-500">ประเภท:</div><div className="col-span-2 font-semibold text-gray-800">{formData.invoiceType}</div>
+                                        <div className="font-bold text-gray-500">สถานะสินค้า:</div><div className="col-span-2 font-medium text-green-600 flex items-center gap-1"><IconCheck /> {formData.itemStatus}</div>
+                                        <div className="col-span-3 border-t border-gray-100 my-1"></div>
+                                        <div className="font-bold text-gray-500">ช่องทาง:</div><div className="col-span-2 text-gray-800">{formData.channel}</div>
+                                        <div className="font-bold text-gray-500">เลขที่คำสั่งซื้อ:</div><div className="col-span-2 font-mono text-gray-800">{formData.orderId}</div>
+                                        <div className="col-span-3 border-t border-gray-100 my-1"></div>
+                                        {formData.invoiceType === 'นิติบุคคล' ? (
+                                            <>
+                                                <div className="font-bold text-gray-500">ชื่อบริษัท:</div><div className="col-span-2 text-gray-800">{formData.companyName}</div>
+                                                <div className="font-bold text-gray-500">เลขผู้เสียภาษี:</div><div className="col-span-2 font-mono text-gray-800">{formData.taxId}</div>
+                                                <div className="font-bold text-gray-500">สาขา:</div><div className="col-span-2 text-gray-800">{formData.branch}</div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="font-bold text-gray-500">ชื่อ-นามสกุล:</div><div className="col-span-2 text-gray-800">{formData.prefix} {formData.firstName} {formData.lastName}</div>
+                                                <div className="font-bold text-gray-500">เลขบัตร ปชช.:</div><div className="col-span-2 font-mono text-gray-800">{formData.personId}</div>
+                                            </>
+                                        )}
+                                        <div className="col-span-3 border-t border-gray-100 my-1"></div>
+                                        <div className="font-bold text-gray-500">ที่อยู่:</div><div className="col-span-2 whitespace-pre-wrap text-gray-800">{formData.address}</div>
+                                        <div className="font-bold text-gray-500">Email:</div><div className="col-span-2 text-gray-800">{formData.email}</div>
+                                        <div className="font-bold text-gray-500">เบอร์ติดต่อ:</div><div className="col-span-2 font-mono text-gray-800">{formData.phone}</div>
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                                    <button onClick={() => setShowConfirmModal(false)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-white hover:shadow-sm transition-all" disabled={isSubmitting}><IconEdit /> แก้ไข</button>
+                                    <button onClick={handleFinalSubmit} disabled={isSubmitting} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-bold hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-200 transition-all disabled:opacity-70">{isSubmitting ? <><IconLoader /> กำลังส่ง...</> : <><IconSend /> ยืนยันส่งข้อมูล</>}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showSuccessModal && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all scale-100">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                                    <IconCheck className="w-8 h-8 text-green-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">บันทึกข้อมูลเรียบร้อย</h3>
+                                <p className="text-gray-500 mb-6 text-sm">
+                                    ระบบได้รับข้อมูลคำขอใบกำกับภาษีของท่านแล้ว<br/>
+                                    และได้ส่งแจ้งเตือนไปยังเจ้าหน้าที่เรียบร้อยครับ
+                                </p>
+                                <button 
+                                    onClick={() => setShowSuccessModal(false)}
+                                    className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+                                >
+                                    ตกลง
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
