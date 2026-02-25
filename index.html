@@ -104,35 +104,18 @@
                     email: formData.email
                 };
 
-                // --- ตรวจสอบว่ารันบน Google Apps Script หรือไม่ ---
-                if (typeof google !== 'undefined' && google.script) {
-                    google.script.run
-                        .withSuccessHandler((response) => {
-                            setIsSubmitting(false);
-                            setShowConfirmModal(false);
-                            if (response.success) {
-                                setShowSuccessModal(true);
-                                setStep(1);
-                                setFormData({
-                                    itemStatus: '', invoiceType: '', channel: '', orderId: '',
-                                    companyName: '', taxId: '', branch: '', address: '',
-                                    email: '', phone: '', prefix: '', firstName: '', lastName: '', personId: ''
-                                });
-                            } else {
-                                alert('เกิดข้อผิดพลาด: ' + response.error);
-                            }
-                        })
-                        .withFailureHandler((error) => {
-                            setIsSubmitting(false);
-                            setShowConfirmModal(false);
-                            alert('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: ' + error);
-                        })
-                        .saveData(finalData);
-                } else {
-                    console.log("Simulation Mode: Saving data...", finalData);
-                    setTimeout(() => {
-                        setIsSubmitting(false);
-                        setShowConfirmModal(false);
+                // --- URL ของ Web App ที่ได้จาก Google Apps Script (สำคัญ: เอามาใส่ตรงนี้) ---
+                const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydn48ihO_HV6eWxMyQl7fIBrbLJve_SZJET5AAYeYeW51iBkB0oD3krhvhOXAJ6Y_KxA/exec';
+
+                fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(finalData),
+                })
+                .then(response => response.json())
+                .then(response => {
+                    setIsSubmitting(false);
+                    setShowConfirmModal(false);
+                    if (response.success) {
                         setShowSuccessModal(true);
                         setStep(1);
                         setFormData({
@@ -140,8 +123,15 @@
                             companyName: '', taxId: '', branch: '', address: '',
                             email: '', phone: '', prefix: '', firstName: '', lastName: '', personId: ''
                         });
-                    }, 1500);
-                }
+                    } else {
+                        alert('เกิดข้อผิดพลาด: ' + response.error);
+                    }
+                })
+                .catch(error => {
+                    setIsSubmitting(false);
+                    setShowConfirmModal(false);
+                    alert('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ โปรดลองอีกครั้ง: ' + error);
+                });
             };
 
             return (
